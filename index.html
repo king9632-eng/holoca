@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ホロカ確率計算機 (50枚固定・総合確率版)</title>
+    <style>
+        :root {
+            --primary-bg: #f0f8ff;
+            --card-bg: #ffffff;
+            --holo-blue: #00a1e9;
+            --holo-pink: #f4b4d0;
+            --text-main: #333333;
+        }
+
+        body {
+            font-family: 'Hiragino Maru Gothic ProN', 'Rounded M+ 1c', 'Meiryo', sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background-color: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 161, 233, 0.15);
+            overflow: hidden;
+            border: 3px solid #e1f3fc;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--holo-pink), var(--holo-blue));
+            padding: 25px 15px;
+            text-align: center;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 1px;
+        }
+
+        .header p {
+            margin: 10px 0 0;
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .input-section {
+            padding: 20px;
+            background-color: #fafdf5;
+            border-bottom: 2px dashed #ddd;
+        }
+
+        .fixed-notice {
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 15px;
+            background-color: #eee;
+            padding: 8px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .input-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .input-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .input-group label {
+            font-weight: bold;
+            font-size: 15px;
+        }
+
+        .input-group input {
+            width: 80px;
+            padding: 8px;
+            font-size: 16px;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            text-align: center;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus {
+            border-color: var(--holo-blue);
+        }
+
+        .result-section {
+            padding: 20px;
+        }
+
+        .result-card {
+            background: #ffffff;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .result-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .result-title {
+            font-weight: bold;
+            font-size: 16px;
+            color: var(--holo-blue);
+            margin-bottom: 10px;
+            border-bottom: 2px solid var(--holo-pink);
+            padding-bottom: 5px;
+        }
+
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px dotted #eee;
+            align-items: center;
+        }
+
+        .result-row span:first-child {
+            flex: 1;
+            padding-right: 15px;
+            line-height: 1.4;
+        }
+
+        .result-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .highlight {
+            font-weight: bold;
+            font-size: 18px;
+            color: #ff4757;
+            white-space: nowrap;
+        }
+        
+        .value {
+            font-weight: bold;
+            font-size: 16px;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>🌟ホロカ確率計算機🌟</h1>
+        <p>50枚固定・マリガン＆ドローシミュレーター</p>
+    </div>
+
+    <div class="input-section">
+        <div class="fixed-notice">デッキ総枚数： 50枚 (固定)</div>
+        <div class="input-group">
+            <label>🎙 デビューの枚数</label>
+            <input type="number" id="debut" value="10" min="0" max="50">
+        </div>
+        <div class="input-group">
+            <label>💻 パソコンの枚数</label>
+            <input type="number" id="pc" value="3" min="0" max="50">
+        </div>
+    </div>
+
+    <div class="result-section">
+
+        <div class="result-card">
+            <div class="result-title">【条件①】基礎確率と追加ドロー込みの総合確率</div>
+            <div class="result-row">
+                <span>初期7枚でデビューが1枚以上ある確率</span>
+                <span id="cond1-1" class="value">-</span>
+            </div>
+            <div class="result-row">
+                <span>初期7枚で「デビュー2枚以上」または「デビュー1枚＋パソコン1枚以上」ある確率</span>
+                <span id="cond1-2" class="value">-</span>
+            </div>
+            <div class="result-row" style="background-color: #f0f8ff; padding: 10px; border-radius: 8px; margin-top: 10px;">
+                <span>初期7枚でデビュー1枚以上をキープし、<b>追加1枚のドローを含めて</b>最終的に「デビュー2枚以上」または「デビュー1枚＋パソコン1枚以上」となる総合的な確率</span>
+                <span id="cond1-3" class="highlight">-</span>
+            </div>
+        </div>
+
+        <div class="result-card" style="border-color: #a29bfe; background-color: #f8f9fc;">
+            <div class="result-title" style="color: #6c5ce7; border-bottom-color: #a29bfe;">【条件②】初期手札での理想盤面達成率</div>
+            <div class="result-row">
+                <span>初期7枚で「デビュー2枚以上」または「デビュー1枚以上とパソコンが1枚以上」となる確率</span>
+                <span id="cond2" class="highlight" style="color: #6c5ce7;">-</span>
+            </div>
+        </div>
+
+        <div class="result-card" style="background-color: #fffaf0; border-color: #ffeaa7;">
+            <div class="result-title" style="color: #e17055; border-bottom-color: #ffeaa7;">【条件③】妥協なし・全マリガン戦略</div>
+            <div style="font-size: 12px; color: #888; margin-bottom: 10px;">※初期7枚で「デビュー1枚以下かつパソコン1枚未満」の場合、必ずマリガンを行う前提</div>
+            
+            <div class="result-row">
+                <span>マリガンを実行する確率</span>
+                <span id="cond3-mull" class="value">-</span>
+            </div>
+            <div class="result-row" style="background-color: #fff3e0; padding: 12px; border-radius: 8px; margin-top: 10px; border: 1px solid #ffdcb0;">
+                <span><b>【最終的な盤面完成率】</b><br>マリガンと追加1ドローを加味して、最終手札に「デビュー2枚以上」または「デビュー1枚とパソコンが1枚以上」の条件を達成できる確率</span>
+                <span id="cond3-final" class="highlight" style="font-size: 22px;">-</span>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // 組み合わせ計算 (nCr)
+    function nCr(n, r) {
+        if (r < 0 || r > n) return 0;
+        if (r === 0 || r === n) return 1;
+        let res = 1;
+        for (let i = 1; i <= r; i++) {
+            res = res * (n - i + 1) / i;
+        }
+        return res;
+    }
+
+    function calculate() {
+        const total = 50; // デッキ枚数は50枚固定
+        const D = parseInt(document.getElementById('debut').value) || 0;
+        const P = parseInt(document.getElementById('pc').value) || 0;
+        
+        if (D + P > 50) return;
+        const W = total - D - P;
+
+        // ===== 確率計算の基本パーツ =====
+        // 7枚ドロー時の失敗（理想盤面未達成）確率
+        const fail7_D0 = nCr(W + P, 7) / nCr(total, 7); // デビュー0枚
+        const fail7_D1P0 = (nCr(D, 1) * nCr(W, 6)) / nCr(total, 7); // デビュー1枚＆PC0枚
+        
+        // 初手7枚の総合失敗確率（＝マリガン条件を満たす確率）
+        const fail7_total = fail7_D0 + fail7_D1P0;
+        // 初手7枚の理想盤面達成確率
+        const success7 = 1 - fail7_total;
+
+        // 8枚ドロー時(マリガン後)の失敗確率
+        const fail8_D0 = nCr(W + P, 8) / nCr(total, 8);
+        const fail8_D1P0 = (nCr(D, 1) * nCr(W, 7)) / nCr(total, 8);
+        const success8 = 1 - (fail8_D0 + fail8_D1P0);
+
+
+        // ===== 【出力条件①】 =====
+        // 1. 初期7枚でデビューが1枚以上ある確率
+        const cond1_1 = 1 - fail7_D0;
+        
+        // 2. 初期7枚で「デビュー2枚以上」または「デビュー1枚+PC1枚以上」
+        const cond1_2 = success7;
+
+        // 3. 初期7枚でデビュー1枚以上を引き、追加1ドローを含めて最終的に理想盤面となる総合的な確率
+        // = (1枚以上引く確率) - (1枚引いてPC0枚の状態で、8枚目に白(PC以外)を引いてしまう確率)
+        let prob_8th_is_W = 0;
+        if (W >= 6) {
+            prob_8th_is_W = (W - 6) / 43;
+        }
+        const cond1_3 = cond1_1 - (fail7_D1P0 * prob_8th_is_W);
+
+
+        // ===== 【出力条件②】 =====
+        // 初期7枚での理想盤面達成率
+        const cond2 = success7;
+
+
+        // ===== 【出力条件③】 =====
+        // 1. マリガン実行率 (デビュー1枚以下かつPC0枚)
+        const cond3_mull = fail7_total;
+        
+        // 2. 最終達成率 ＝ 初手キープ率(success7) ＋ マリガン実行率(fail7_total) × マリガン後の8枚成功率(success8)
+        const cond3_final = success7 + (fail7_total * success8);
+
+
+        // ===== 画面への反映 =====
+        document.getElementById('cond1-1').textContent = (cond1_1 * 100).toFixed(2) + '%';
+        document.getElementById('cond1-2').textContent = (cond1_2 * 100).toFixed(2) + '%';
+        document.getElementById('cond1-3').textContent = (cond1_3 * 100).toFixed(2) + '%';
+
+        document.getElementById('cond2').textContent = (cond2 * 100).toFixed(2) + '%';
+
+        document.getElementById('cond3-mull').textContent = (cond3_mull * 100).toFixed(2) + '%';
+        document.getElementById('cond3-final').textContent = (cond3_final * 100).toFixed(2) + '%';
+    }
+
+    // イベントリスナーの登録
+    document.getElementById('debut').addEventListener('input', calculate);
+    document.getElementById('pc').addEventListener('input', calculate);
+
+    // 初期状態の計算を実行
+    calculate();
+</script>
+
+</body>
+</html>
