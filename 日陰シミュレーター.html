@@ -1,0 +1,323 @@
+import os
+
+html_content = """
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日当たり・日影シミュレーター</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #f39c12;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--primary-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            border-left: 5px solid var(--accent-color);
+            padding-left: 15px;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+            background: #f1f3f5;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            font-size: 0.9rem;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button.active {
+            background: var(--accent-color);
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            overflow-x: auto;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+        .info-panel {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #fff9db;
+            border: 1px solid #ffe066;
+        }
+        .info-text {
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        .legend {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+            font-size: 0.8rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .box { width: 12px; height: 12px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>日当たり・日影シミュレーター</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <span class="slider-label">季節プリセット（兵庫県南部 緯度34.8°基準）</span>
+            <div class="btn-group">
+                <button onclick="setSeason('winter')">冬至 (31.8°)</button>
+                <button onclick="setSeason('equinox')">春秋分 (55.2°)</button>
+                <button onclick="setSeason('summer')">夏至 (78.6°)</button>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <div class="slider-label">
+                <span>太陽高度（角度）</span>
+                <span id="angle-display">31.8°</span>
+            </div>
+            <input type="range" id="angle-slider" min="5" max="85" step="0.1" value="31.8" oninput="updateFromSlider()">
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <canvas id="simCanvas" width="800" height="400"></canvas>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item"><div class="box" style="background: #e9ecef; border: 1px solid #dee2e6;"></div> 南側建物 (12m)</div>
+        <div class="legend-item"><div class="box" style="background: #d0ebff; border: 1px solid #74c0fc;"></div> 計画建物 (6.5m)</div>
+        <div class="legend-item"><div class="box" style="background: rgba(0,0,0,0.15);"></div> 日影エリア</div>
+    </div>
+
+    <div id="result-info" class="info-panel">
+        <div class="info-text" id="status-msg">計算中...</div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const slider = document.getElementById('angle-slider');
+    const angleDisplay = document.getElementById('angle-display');
+    const statusMsg = document.getElementById('status-msg');
+
+    // 定数設定 (1m = 25px)
+    const SCALE = 25;
+    const OFFSET_X = 50;
+    const OFFSET_Y = 350;
+
+    const SOUTH_BLDG_H = 12;
+    const ROAD_W = 7;
+    const YARD_W = 5;
+    const MY_BLDG_H = 6.5;
+
+    function setSeason(season) {
+        let angle;
+        switch(season) {
+            case 'winter': angle = 31.8; break;
+            case 'equinox': angle = 55.2; break;
+            case 'summer': angle = 78.6; break;
+        }
+        slider.value = angle;
+        updateFromSlider();
+    }
+
+    function updateFromSlider() {
+        const angle = parseFloat(slider.value);
+        angleDisplay.innerText = angle.toFixed(1) + '°';
+        draw(angle);
+    }
+
+    function draw(angle) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const rad = angle * (Math.PI / 180);
+        
+        // 1. 地面
+        ctx.beginPath();
+        ctx.strokeStyle = '#adb5bd';
+        ctx.moveTo(0, OFFSET_Y);
+        ctx.lineTo(canvas.width, OFFSET_Y);
+        ctx.stroke();
+
+        // 2. 南側建物
+        const southX = OFFSET_X;
+        ctx.fillStyle = '#e9ecef';
+        ctx.strokeStyle = '#dee2e6';
+        ctx.fillRect(southX, OFFSET_Y - SOUTH_BLDG_H * SCALE, 2 * SCALE, SOUTH_BLDG_H * SCALE);
+        ctx.strokeRect(southX, OFFSET_Y - SOUTH_BLDG_H * SCALE, 2 * SCALE, SOUTH_BLDG_H * SCALE);
+        
+        // ラベル
+        ctx.fillStyle = '#495057';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('南側建物 (12m)', southX, OFFSET_Y - SOUTH_BLDG_H * SCALE - 10);
+
+        // 3. 道路と距離のライン
+        ctx.beginPath();
+        ctx.setLineDash([5, 5]);
+        ctx.moveTo(southX + 2 * SCALE, OFFSET_Y + 20);
+        ctx.lineTo(southX + (2 + ROAD_W) * SCALE, OFFSET_Y + 20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillText(`道路 ${ROAD_W}m`, southX + 4 * SCALE, OFFSET_Y + 35);
+
+        ctx.beginPath();
+        ctx.setLineDash([5, 5]);
+        ctx.moveTo(southX + (2 + ROAD_W) * SCALE, OFFSET_Y + 20);
+        ctx.lineTo(southX + (2 + ROAD_W + YARD_W) * SCALE, OFFSET_Y + 20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillText(`庭 ${YARD_W}m`, southX + (2 + ROAD_W + 2) * SCALE, OFFSET_Y + 35);
+
+        // 4. 計画建物
+        const myX = southX + (2 + ROAD_W + YARD_W) * SCALE;
+        ctx.fillStyle = '#d0ebff';
+        ctx.strokeStyle = '#74c0fc';
+        ctx.fillRect(myX, OFFSET_Y - MY_BLDG_H * SCALE, 4 * SCALE, MY_BLDG_H * SCALE);
+        ctx.strokeRect(myX, OFFSET_Y - MY_BLDG_H * SCALE, 4 * SCALE, MY_BLDG_H * SCALE);
+        ctx.fillStyle = '#1864ab';
+        ctx.fillText('計画建物 (6.5m)', myX, OFFSET_Y - MY_BLDG_H * SCALE - 10);
+
+        // 5. 影の計算と描画
+        const shadowLen = SOUTH_BLDG_H / Math.tan(rad);
+        const shadowEndX = southX + 2 * SCALE + shadowLen * SCALE;
+
+        // 影エリアの描画
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        ctx.beginPath();
+        ctx.moveTo(southX + 2 * SCALE, OFFSET_Y);
+        
+        // 影の終点が計画建物にぶつかるかチェック
+        const distToWall = ROAD_W + YARD_W;
+        let shadowOnWallH = 0;
+
+        if (shadowLen > distToWall) {
+            // 壁に影が当たる場合
+            shadowOnWallH = SOUTH_BLDG_H - (distToWall * Math.tan(rad));
+            if (shadowOnWallH < 0) shadowOnWallH = 0;
+            
+            ctx.lineTo(myX, OFFSET_Y);
+            ctx.lineTo(myX, OFFSET_Y - Math.min(shadowOnWallH, MY_BLDG_H) * SCALE);
+            ctx.lineTo(southX + 2 * SCALE, OFFSET_Y - SOUTH_BLDG_H * SCALE);
+        } else {
+            // 地面で影が終わる場合
+            ctx.lineTo(shadowEndX, OFFSET_Y);
+            ctx.lineTo(southX + 2 * SCALE, OFFSET_Y - SOUTH_BLDG_H * SCALE);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // 6. 太陽光の線
+        ctx.beginPath();
+        ctx.setLineDash([2, 2]);
+        ctx.strokeStyle = '#f39c12';
+        ctx.lineWidth = 2;
+        ctx.moveTo(southX + 2 * SCALE - (2 * SCALE), OFFSET_Y - SOUTH_BLDG_H * SCALE - (2 * SCALE * Math.tan(rad)));
+        ctx.lineTo(myX + 6 * SCALE, OFFSET_Y - SOUTH_BLDG_H * SCALE + ( (myX + 4 * SCALE - southX) * Math.tan(rad)));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineWidth = 1;
+
+        // ステータスメッセージの更新
+        updateStatus(shadowLen, shadowOnWallH, angle);
+    }
+
+    function updateStatus(len, wallH, angle) {
+        let msg = `<strong>現在のシミュレーション結果:</strong><br>`;
+        msg += `・太陽高度: ${angle.toFixed(1)}度<br>`;
+        msg += `・影の長さ: 約${len.toFixed(2)}m (南側建物から)<br>`;
+        
+        if (wallH > 0) {
+            if (wallH >= MY_BLDG_H) {
+                msg += `・<span style="color:red; font-weight:bold;">建物全体（${MY_BLDG_H}m）が影に入っています。</span>`;
+            } else {
+                msg += `・建物の地上から <strong>約${wallH.toFixed(2)}m</strong> の高さまで影が到達しています。`;
+                if (wallH > 3) {
+                    msg += `<br>（1階部分はほぼ影になり、2階の窓から日が当たる状態です）`;
+                } else {
+                    msg += `<br>（1階の下部に影がかかりますが、窓の上部には日が当たります）`;
+                }
+            }
+        } else {
+            msg += `・<span style="color:green; font-weight:bold;">建物に影はかかっていません。1階まで直射日光が入ります。</span>`;
+        }
+        statusMsg.innerHTML = msg;
+    }
+
+    // 初回描画
+    draw(31.8);
+
+</script>
+</body>
+</html>
+"""
+
+file_path = "interactive_sunlight_simulator.html"
+with open(file_path, "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print(f"File saved to: {file_path}")
